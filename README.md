@@ -1,6 +1,6 @@
 # Ukraine
 
-Ukraine is a deep learning toolkit that includes transformer models, tokenizers, and masking utilities.
+Ukraine is a deep learning toolkit that includes research models, approaches and utils.
 
 ## Installation
 
