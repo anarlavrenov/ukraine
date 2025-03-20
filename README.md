@@ -18,3 +18,4 @@ agent = PDFLlamaRAGAgent(
 result = agent.chat("What is this document about?")
 print(result["answer"])
 ```
+[View this example in the cookbook](./cookbook/rag_cookbook.ipynb)
