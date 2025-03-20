@@ -5,7 +5,7 @@ Ukraine is a deep learning toolkit that includes transformer models, tokenizers,
 ## Installation
 
 ```bash
-# !pip install -U ukraine[langchain_llama]
+!pip install -U ukraine[langchain_llama]
 ```
 
 ```python
