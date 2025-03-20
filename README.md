@@ -15,6 +15,6 @@ agent = PDFLlamaRAGAgent(
     file_path="PATH_TO_PDF",
     system_prompt="""Provide answers based on the document."{context}""""
 )
-result = agent.chat("Which Business courses are available?")
+result = agent.chat("What is this document about?")
 print(result["answer"])
 ```
