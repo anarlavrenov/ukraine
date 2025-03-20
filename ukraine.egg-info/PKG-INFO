@@ -1,0 +1,37 @@
+Metadata-Version: 2.4
+Name: ukraine
+Version: 0.0.1
+Summary: DSpackage: A Data Science Toolkit
+Author-email: Anar <anarstanislavlavrenov@gmail.com>
+License: MIT
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Provides-Extra: torch
+Requires-Dist: torch; extra == "torch"
+Requires-Dist: torchtext; extra == "torch"
+Provides-Extra: langchain-openai
+Requires-Dist: langchain-openai; extra == "langchain-openai"
+Requires-Dist: langchain_community; extra == "langchain-openai"
+Requires-Dist: pypdf; extra == "langchain-openai"
+Requires-Dist: faiss-cpu; extra == "langchain-openai"
+Provides-Extra: langchain-deepseek
+Requires-Dist: langchain-deepseek; extra == "langchain-deepseek"
+Requires-Dist: langchain_community; extra == "langchain-deepseek"
+Requires-Dist: langchain_openai; extra == "langchain-deepseek"
+Requires-Dist: pypdf; extra == "langchain-deepseek"
+Requires-Dist: faiss-cpu; extra == "langchain-deepseek"
+Provides-Extra: langchain-llama
+Requires-Dist: langchain-nvidia-ai-endpoints; extra == "langchain-llama"
+Requires-Dist: langchain_community; extra == "langchain-llama"
+Requires-Dist: langchain_openai; extra == "langchain-llama"
+Requires-Dist: pypdf; extra == "langchain-llama"
+Requires-Dist: faiss-cpu; extra == "langchain-llama"
+
+# Ukraine
+
+Ukraine is a deep learning toolkit that includes transformer models, tokenizers, and masking utilities.
+
+## Installation
+
+```bash
+pip install ukraine
