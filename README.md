@@ -5,7 +5,7 @@ Ukraine is a deep learning toolkit that includes research models, approaches and
 ## Installation
 
 ```bash
-!pip install -U ukraine[langchain_llama]
+pip install -U ukraine[langchain_llama]
 ```
 
 ```python
