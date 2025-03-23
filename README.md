@@ -20,7 +20,7 @@ print(result["answer"])
 ```
 [View this example in the cookbook](./cookbook/rag_cookbook.ipynb)
 
-### 🧠 Added: Complex Jira Agent
+### 🧠 Introducing Complex AI Agents
 
 A new file has been added:  `ukraine/agents/complex.py`
 
