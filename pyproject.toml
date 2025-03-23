@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ukraine"
-version = "0.0.2"
+version = "0.0.6"
 authors = [{name = "Anar", email = "anarstanislavlavrenov@gmail.com"}]
 description = "Ukraine: A Data Science Toolkit"
 readme = "README.md"
@@ -12,9 +12,11 @@ requires-python = ">=3.7"
 dependencies = []
 license = {text = "MIT"}
 
-[project.optional-dependencies]
-torch = ["torch", "torchtext"]
+[tool.setuptools.packages.find]
+include = ["ukraine*"]
+exclude = ["cookbook*"]
 
+[project.optional-dependencies]
 langchain_openai = [
     "langchain-openai",
     "langchain_community",
@@ -35,6 +37,14 @@ langchain_llama = [
     "pypdf",
     "faiss-cpu"
 ]
+jira = [
+    "langchain-openai",
+    "langchain_community",
+    "langchain",
+    "atlassian-python-api"
+]
+expressnet = ["torch"]
+phaseunet = ["torch", "torchaudio"]
 
 [tool.setuptools]
 license-files = []

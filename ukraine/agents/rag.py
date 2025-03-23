@@ -13,6 +13,16 @@ from abc import ABC, abstractmethod
 
 
 class BasePDFRAGAgent(ABC):
+    """
+    Manages the creation and operation of a Retrieval-Augmented Generation (RAG) agent
+    based on PDF content, enabling conversational interactions with extracted information.
+
+    This class serves as a base for developing systems that require large language
+    model (LLM) interactions with document-based content through contextual history-aware
+    retrieval. The agent splits documents into chunks, vectorizes them into embeddings,
+    and builds a chain of components for achieving human-like conversational interactions
+    with the document's content.
+    """
     def __init__(
             self,
             file_path: str,
@@ -100,6 +110,20 @@ class BasePDFRAGAgent(ABC):
 
 
 def contextualize_q_system_prompt():
+    """
+    Create a system ChatPromptTemplate for transforming user inputs into
+    standalone questions by contextualizing them with chat history.
+
+    This function initializes a `ChatPromptTemplate` that processes messages,
+    including a system prompt instructing the transformation of a user question
+    into a standalone version, by using the chat history if required. The purpose
+    of this setup is to ensure that questions are independent of context and can
+    be understood on their own.
+
+    :return: An instance of `ChatPromptTemplate` appropriately configured for
+             contextualizing user inputs.
+    :rtype: ChatPromptTemplate
+    """
     return ChatPromptTemplate.from_messages(
         [
             ("system", "Given a chat history and the latest user question "
@@ -114,6 +138,12 @@ def contextualize_q_system_prompt():
 
 
 class PDFLlamaRAGAgent(BasePDFRAGAgent):
+    """
+        A PDFLlamaRAGAgent is a specialized retrieval-augmented generation (RAG) agent designed
+        for processing and retrieving information efficiently from PDF documents. This class
+        serves as an interface to integrate the Llama large language model with a history-aware
+        retriever for enhanced retrieval capabilities utilizing context-aware query generation.
+    """
     def initialize_history_aware_retriever(self, retriever, temperature=0.2, max_tokens=256):
         if importlib.util.find_spec("langchain_nvidia_ai_endpoints") is None:
             raise ImportError(
@@ -131,6 +161,15 @@ class PDFLlamaRAGAgent(BasePDFRAGAgent):
 
 
 class PDFDeepSeekRAGAgent(BasePDFRAGAgent):
+    """
+    This class represents a PDF-specific Retrieval-Augmented Generation (RAG) agent,
+    extending functionality from a base PDF RAG agent. It introduces advanced
+    retrieval mechanisms and integrates with sophisticated LLMs.
+
+    The class is designed to facilitate integration with PDF data, leveraging
+    DeepSeek's capabilities when installed. It initializes a history-aware retriever
+    to enhance contextualization during query processing.
+    """
     def initialize_history_aware_retriever(self, retriever, temperature=0.2, max_tokens=256):
         if importlib.util.find_spec("langchain_deepseek") is None:
             raise ImportError(
@@ -148,6 +187,14 @@ class PDFDeepSeekRAGAgent(BasePDFRAGAgent):
 
 
 class PDFOpenAIRAGAgent(BasePDFRAGAgent):
+    """
+    A class designed for handling interactions with OpenAI-based models and enabling history-aware retrieval
+    mechanisms from documents. This class extends the functionality of BasePDFRAGAgent by incorporating a
+    specialized retriever setup integrated with OpenAI's GPT model.
+
+    The purpose of this class is to allow users to process and retrieve contextually relevant information
+    from PDFs or document collections using OpenAI's GPT-based language model via LangChain.
+    """
     def initialize_history_aware_retriever(self, retriever, temperature=0.2, max_tokens=256):
         if importlib.util.find_spec("langchain_openai") is None:
             raise ImportError(

@@ -1,4 +1,13 @@
 
+[expressnet]
+torch
+
+[jira]
+langchain-openai
+langchain_community
+langchain
+atlassian-python-api
+
 [langchain_deepseek]
 langchain-deepseek
 langchain_community
@@ -19,6 +28,6 @@ langchain_community
 pypdf
 faiss-cpu
 
-[torch]
+[phaseunet]
 torch
-torchtext
+torchaudio
