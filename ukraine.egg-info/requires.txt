@@ -1,4 +1,8 @@
 
+[agno]
+agno
+firecrawl
+
 [expressnet]
 torch
 

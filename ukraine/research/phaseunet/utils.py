@@ -122,7 +122,7 @@ def download_phaseunet_weights(save_dir: str) -> None:
     :type save_dir: str
     :return: None    :rtype: None
     """
-    url = "https://github.com/anarlavrenov/ukraine/releases/download/v0.0.3/model_state_dict_epoch_29_pesq_2.946.pth"
+    url = "https://github.com/anarlavrenov/ukraine/releases/download/v0.0.7/model_state_dict_epoch_29_pesq_2.946.pth"
     save_dir = os.path.expanduser(save_dir)
     save_path = os.path.join(
         save_dir,

@@ -3,6 +3,8 @@ from langchain_openai import ChatOpenAI
 from langchain.agents import AgentType, initialize_agent
 from langchain.agents.agent_toolkits.jira.toolkit import JiraToolkit
 from langchain.utilities.jira import JiraAPIWrapper
+from agno.agent import Agent
+from agno.tools.firecrawl import FirecrawlTools
 
 
 class OpenAIJiraNoteAgent:
@@ -32,6 +34,7 @@ class OpenAIJiraNoteAgent:
         tasks = agent.convert_text_to_tasks(transcription, max_tokens=368)
         agent.create_jira_tickets(tasks, project_key="KAN", language"ukrainian")
     """
+
     def __init__(
             self
     ):
@@ -109,3 +112,29 @@ class OpenAIJiraNoteAgent:
             verbose=True
         )
         agent.run(instruction)
+
+
+def parse_web_content(
+        link: str,
+        prompt: str
+) -> str:
+    """
+    Fetches the content from the given web link based on the supplied prompt
+    using an agent with configured tools. The method uses scraping functionality
+    without crawling to retrieve the content. The prompt provided is appended
+    to the link to form the query for the agent.
+
+    :param link: The URL of the web resource to fetch content from.
+    :type link: str
+    :param prompt: The instruction or query to guide the content parsing.
+    :type prompt: str
+    :return: The parsed content extracted from the web link based on the prompt.
+    :rtype: str
+    """
+    parse_agent = Agent(
+        tools=[FirecrawlTools(scrape=True, crawl=False)],
+        show_tool_calls=False,
+        markdown=False
+    )
+    response = parse_agent.run(prompt + " " + link)
+    return response.content

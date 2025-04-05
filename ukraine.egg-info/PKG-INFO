@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: ukraine
-Version: 0.0.6
+Version: 0.0.8
 Summary: Ukraine: A Data Science Toolkit
 Author-email: Anar <anarstanislavlavrenov@gmail.com>
 License: MIT
@@ -28,6 +28,9 @@ Requires-Dist: langchain-openai; extra == "jira"
 Requires-Dist: langchain_community; extra == "jira"
 Requires-Dist: langchain; extra == "jira"
 Requires-Dist: atlassian-python-api; extra == "jira"
+Provides-Extra: agno
+Requires-Dist: agno; extra == "agno"
+Requires-Dist: firecrawl; extra == "agno"
 Provides-Extra: expressnet
 Requires-Dist: torch; extra == "expressnet"
 Provides-Extra: phaseunet
@@ -36,12 +39,12 @@ Requires-Dist: torchaudio; extra == "phaseunet"
 
 # Ukraine
 
-Ukraine is a deep learning toolkit that includes transformer models, tokenizers, and masking utilities.
+Ukraine is a deep learning toolkit that includes research models, approaches and utils.
 
 ## Installation
 
 ```bash
-!pip install -U ukraine[langchain_llama]
+pip install -U ukraine[langchain_llama]
 ```
 
 ```python
@@ -49,8 +52,9 @@ from ukraine.agents.rag import PDFLlamaRAGAgent
 
 agent = PDFLlamaRAGAgent(
     file_path="PATH_TO_PDF",
-    system_prompt="""Provide answers based on the document."{context}""""
+    system_prompt="""Provide answers based on the document."{context}"""
 )
 result = agent.chat("What is this document about?")
 print(result["answer"])
 ```
+[View this example in the cookbook](./cookbook/rag_cookbook.ipynb)
