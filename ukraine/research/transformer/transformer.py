@@ -1,10 +1,10 @@
 import torch
 from torch import nn
-from layers import (
+from .layers import (
     PositionalEncoding,
     MultiheadAttention
 )
-from typing import Tuple, Optional, Dict
+from typing import Tuple, Optional, Dict, Callable
 
 
 class EncoderLayer(nn.Module):
@@ -46,19 +46,20 @@ class EncoderLayer(nn.Module):
             d_model: int,
             num_heads: int,
             dropout_rate: float,
-            ff_module: nn.Module,
-            norm_module: nn.Module
+            ff_factory: Callable[[], nn.Module],
+            norm_factory: Callable[[], nn.Module],
+            use_flash: bool = False,
     ) -> None:
         super(EncoderLayer, self).__init__()
 
         self.d_model = d_model
         self.num_heads = num_heads
-        self.mha = MultiheadAttention(d_model, num_heads, dropout_rate)
+        self.mha = MultiheadAttention(d_model, num_heads, dropout_rate, use_flash=use_flash)
 
-        self.ff_module = ff_module
+        self.ff_module = ff_factory()
 
-        self.norm1 = norm_module
-        self.norm2 = norm_module
+        self.norm1 = norm_factory()
+        self.norm2 = norm_factory()
         self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self,
@@ -80,10 +81,12 @@ class EncoderLayer(nn.Module):
         :return: Encoded output tensor resulting from applying the Transformer
             encoder layer to the input tensor.
         """
+
+        nx = self.norm1(x)
         attention_output, attention_weights = self.mha(
-            x, x, x, mask, src_key_padding_mask)
-        out1 = self.norm1(x + self.dropout(attention_output))
-        out2 = self.norm2(out1 + self.ff_module(out1))
+            nx, nx, nx, mask, src_key_padding_mask)
+        out1 = x + self.dropout(attention_output)
+        out2 = out1 + self.ff_module(self.norm2(out1))
 
         return out2
 
@@ -124,31 +127,47 @@ class DecoderLayer(nn.Module):
             d_model: int,
             num_heads: int,
             dropout_rate: float,
-            ff_module: nn.Module,
-            norm_module: nn.Module
+            ff_factory: Callable[[], nn.Module],
+            norm_factory: Callable[[], nn.Module],
+            use_flash: bool = False,
+            use_cross_attn: bool = False,
+            cross_fusion: bool = False
     ):
         super(DecoderLayer, self).__init__()
 
-        self.self_attention = MultiheadAttention(d_model, num_heads, dropout_rate)
-        self.cross_attention = MultiheadAttention(d_model, num_heads, dropout_rate)
-
-        self.ff_module = ff_module
+        self.self_attention = MultiheadAttention(d_model, num_heads, dropout_rate, use_flash=use_flash)
+        self.ff_module = ff_factory()
 
         self.dropout1 = nn.Dropout(dropout_rate)
-        self.dropout2 = nn.Dropout(dropout_rate)
-        self.norm1 = norm_module
-        self.norm2 = norm_module
-        self.norm3 = norm_module
+        self.norm1 = norm_factory()
+        self.norm3 = norm_factory()
+
+        self.cross_fusion = cross_fusion
+        self.use_cross_attn = use_cross_attn
+
+        if self.cross_fusion and not self.use_cross_attn:
+            raise ValueError("cross_fusion=True requires use_cross_attn=True")
+
+        if self.use_cross_attn:
+            self.cross_attention = MultiheadAttention(d_model, num_heads, dropout_rate, use_flash=use_flash)
+            self.cross_fc = nn.Linear(2 * d_model, d_model) if self.cross_fusion else None
+            self.dropout2 = nn.Dropout(dropout_rate)
+            self.norm2 = norm_factory()
+        else:
+            self.cross_attention = None
+            self.cross_fc = None
+            self.dropout2 = None
+            self.norm2 = None
 
     def forward(
             self,
             x: torch.Tensor,
-            memory: torch.Tensor,
+            memory: Optional[torch.Tensor] = None,
             tgt_mask: Optional[torch.Tensor] = None,
             memory_mask: Optional[torch.Tensor] = None,
             tgt_key_padding_mask: Optional[torch.Tensor] = None,
             memory_key_padding_mask: Optional[torch.Tensor] = None
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         """
         Performs a forward pass through the Transformer decoder layer. The decoder layer
         includes a self-attention mechanism, a cross-attention mechanism, and a feedforward
@@ -183,15 +202,27 @@ class DecoderLayer(nn.Module):
             - cross_attention_weights: The attention weights produced by the cross-attention
               mechanism, with shape `(batch_size, num_heads, target_seq_len, source_seq_len)`.
         """
+
+        nx = self.norm1(x)
         self_attention_output, self_attention_weights = self.self_attention(
-            x, x, x, mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)
-        out1 = self.norm1(x + self.dropout1(self_attention_output))
+            nx, nx, nx,
+            mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)
+        out1 = x + self.dropout1(self_attention_output)
 
-        cross_attention_output, cross_attention_weights = self.cross_attention(
-            out1, memory, memory, mask=memory_mask, key_padding_mask=memory_key_padding_mask)
-        out2 = self.norm2(out1 + self.dropout2(cross_attention_output))
+        if self.use_cross_attn and memory is not None:
+            cross_attention_output, cross_attention_weights = self.cross_attention(
+                self.norm2(out1), memory, memory, mask=memory_mask, key_padding_mask=memory_key_padding_mask)
+            if self.cross_fusion:
+                assert self.cross_fc is not None
+                concat = torch.cat((out1, cross_attention_output), dim=-1)
+                out2 = out1 + self.dropout2(self.cross_fc(concat))
+            else:
+                out2 = out1 + self.dropout2(cross_attention_output)
+        else:
+            cross_attention_weights = None
+            out2 = out1
 
-        out3 = self.norm3(out2 + self.ff_module(out2))
+        out3 = out2 + self.ff_module(self.norm3(out2))
 
         return out3, self_attention_weights, cross_attention_weights
 
@@ -227,8 +258,10 @@ class Encoder(nn.Module):
             num_heads: int,
             input_vocab_size: int,
             dropout_rate: float,
-            ff_module: nn.Module,
-            norm_module: nn.Module
+            ff_factory: Callable[[], nn.Module],
+            norm_factory: Callable[[], nn.Module],
+            pad_token_id: int,
+            use_flash: bool = False
     ) -> None:
         """
         Initializes the Encoder with specified parameters and creates required
@@ -244,14 +277,15 @@ class Encoder(nn.Module):
         """
         super(Encoder, self).__init__()
         self.pe = PositionalEncoding(d_model)
-        self.embedding = nn.Embedding(input_vocab_size, d_model, padding_idx=0)
+        self.embedding = nn.Embedding(input_vocab_size, d_model, padding_idx=pad_token_id)
         self.dropout = nn.Dropout(dropout_rate)
         self.d_model = d_model
 
         self.encoder_layers = nn.ModuleList(
-            [EncoderLayer(d_model, num_heads, dropout_rate, ff_module, norm_module)
+            [EncoderLayer(d_model, num_heads, dropout_rate, ff_factory, norm_factory, use_flash=use_flash)
              for _ in range(num_encoder_layers)]
         )
+        self.final_layer_norm = norm_factory()
 
     def forward(
             self,
@@ -277,11 +311,12 @@ class Encoder(nn.Module):
         :return: Processed tensor after passing through all encoder layers.
         :rtype: torch.Tensor
         """
-        x = self.embedding(x.to(torch.long)) * self.d_model ** 0.5
+        x = self.embedding(x.to(torch.long)) * (self.d_model ** 0.5)
         x = self.dropout(self.pe(x))
 
         for layer in self.encoder_layers:
             x = layer(x, src_mask, src_key_padding_mask)
+        x = self.final_layer_norm(x)
 
         return x
 
@@ -316,8 +351,12 @@ class Decoder(nn.Module):
             num_heads: int,
             target_vocab_size: int,
             dropout_rate: float,
-            ff_module: nn.Module,
-            norm_module: nn.Module
+            ff_factory: Callable[[], nn.Module],
+            norm_factory: Callable[[], nn.Module],
+            pad_token_id: int,
+            use_flash: bool = False,
+            use_cross_attn: bool = False,
+            cross_fusion: bool = False
     ) -> None:
         """
         A Decoder class that implements a multi-layer transformer decoder for sequence-to-sequence
@@ -342,25 +381,27 @@ class Decoder(nn.Module):
         :type dropout_rate: float
         """
         super(Decoder, self).__init__()
-        self.embedding = nn.Embedding(target_vocab_size, d_model, padding_idx=0)
+        self.embedding = nn.Embedding(target_vocab_size, d_model, padding_idx=pad_token_id)
         self.pe = PositionalEncoding(d_model)
         self.dropout = nn.Dropout(dropout_rate)
         self.d_model = d_model
 
         self.decoder_layers = nn.ModuleList(
-            [DecoderLayer(d_model, num_heads, dropout_rate, ff_module, norm_module)
+            [DecoderLayer(d_model, num_heads, dropout_rate, ff_factory,
+                          norm_factory, use_flash=use_flash, use_cross_attn=use_cross_attn, cross_fusion=cross_fusion)
              for _ in range(num_decoder_layers)]
         )
+        self.final_layer_norm = norm_factory()
 
     def forward(
             self,
             tgt: torch.Tensor,
-            memory: torch.Tensor,
+            memory: Optional[torch.Tensor] = None,
             tgt_mask: Optional[torch.Tensor] = None,
             memory_mask: Optional[torch.Tensor] = None,
             tgt_key_padding_mask: Optional[torch.Tensor] = None,
             memory_key_padding_mask: Optional[torch.Tensor] = None
-    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    ) -> Tuple[torch.Tensor, Dict[str, Optional[torch.Tensor]]]:
         """
         Processes the target sequence and memory using a transformer decoder. The method
         applies embedding and positional encoding to the target sequence, followed by
@@ -379,7 +420,7 @@ class Decoder(nn.Module):
         """
         attention_weights = {}
 
-        x = self.embedding(tgt.to(torch.long)) * self.d_model ** 0.5
+        x = self.embedding(tgt.to(torch.long)) * (self.d_model ** 0.5)
         x = self.dropout(self.pe(x))
 
         for i, layer in enumerate(self.decoder_layers):
@@ -396,6 +437,8 @@ class Decoder(nn.Module):
             attention_weights[
                 "decoder_layer_{}_cross_attention_weights".format(i + 1)
             ] = cross_attention_weights
+
+        x = self.final_layer_norm(x)
 
         return x, attention_weights
 
@@ -425,8 +468,12 @@ class Transformer(nn.Module):
             input_vocab_size: int,
             target_vocab_size: int,
             dropout_rate: float,
-            ff_module: nn.Module,
-            norm_module: nn.Module
+            ff_factory: Callable[[], nn.Module],
+            norm_factory: Callable[[], nn.Module],
+            pad_token_id: int,
+            use_encoder: bool = True,
+            use_flash: bool = False,
+            cross_fusion: bool = False
     ) -> None:
         """
         Initializes the Transformer model composed of an encoder and a decoder with
@@ -444,28 +491,36 @@ class Transformer(nn.Module):
         """
         super(Transformer, self).__init__()
 
-        assert ff_module is not None, ("ff_module must be provided. Please import FeedForwardNetwork or other layers "
-                                       "from ukraine.transformers.layers.")
-        assert norm_module is not None, ("norm_module must be provided. Please import DyT from  "
-                                         "ukraine.transformers.layers or use torch.nn.LayerNorm.")
+        self.use_encoder = use_encoder
+        if cross_fusion and not use_encoder:
+            raise ValueError("cross_fusion=True requires use_encoder=True.")
 
-        self.encoder = Encoder(num_encoder_layers, d_model, num_heads,
-                               input_vocab_size, dropout_rate, ff_module, norm_module)
+        if use_encoder:
+            self.encoder = Encoder(num_encoder_layers, d_model, num_heads,
+                                   input_vocab_size, dropout_rate,
+                                   ff_factory, norm_factory,
+                                   pad_token_id, use_flash=use_flash)
+        else:
+            self.encoder = None
+
         self.decoder = Decoder(num_decoder_layers, d_model, num_heads,
-                               target_vocab_size, dropout_rate, ff_module, norm_module)
-        self.output_fc = nn.Linear(d_model, target_vocab_size)
+                               target_vocab_size, dropout_rate,
+                               ff_factory, norm_factory,
+                               pad_token_id, use_flash=use_flash,
+                               use_cross_attn=self.use_encoder, cross_fusion=cross_fusion)
+        self.output_fc = nn.Linear(d_model, target_vocab_size, bias=False)
 
     def forward(
             self,
-            src: torch.Tensor,
-            tgt: torch.Tensor,
+            src: Optional[torch.Tensor] = None,
+            tgt: Optional[torch.Tensor] = None,
             src_mask: Optional[torch.Tensor] = None,
             tgt_mask: Optional[torch.Tensor] = None,
             memory_mask: Optional[torch.Tensor] = None,
             src_key_padding_mask: Optional[torch.Tensor] = None,
             tgt_key_padding_mask: Optional[torch.Tensor] = None,
             memory_key_padding_mask: Optional[torch.Tensor] = None
-    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    ) -> Tuple[torch.Tensor, Dict[str, Optional[torch.Tensor]]]:
         """
         Processes input and target sequences through an encoder-decoder architecture to
         generate logits and attention weights. The forward method integrates multiple
@@ -483,9 +538,19 @@ class Transformer(nn.Module):
         :param memory_key_padding_mask: Optional tensor for padding mask of memory keys.
         :return: A tuple containing the logits tensor and a dictionary of attention weights.
         """
-        memory = self.encoder(src, src_mask, src_key_padding_mask)
+
+        if self.use_encoder and src is not None:
+            memory = self.encoder(src, src_mask, src_key_padding_mask)
+            decoder_input = tgt
+        else:
+            memory = None
+            decoder_input = src if tgt is None else tgt
+
+        if decoder_input is None:
+            raise ValueError("Either source or target sequence must be provided.")
+
         decoder_output, attention_weights = self.decoder(
-            tgt, memory, tgt_mask, memory_mask,
+            decoder_input, memory, tgt_mask, memory_mask,
             tgt_key_padding_mask, memory_key_padding_mask)
 
         logits = self.output_fc(decoder_output)

@@ -150,7 +150,8 @@ class PositionalEncoding(torch.nn.Module):
     def __init__(
             self,
             d_model: int,
-            max_len: int = 1000
+            max_len: int = 1000,
+            scaled: bool = False
     ) -> None:
         """
             Initializes a positional encoding buffer for a PyTorch model.
@@ -169,16 +170,21 @@ class PositionalEncoding(torch.nn.Module):
             """
         super().__init__()
 
+        self.scaled = scaled
+
         position = torch.arange(max_len).unsqueeze(1)
         div_term = torch.exp(
             torch.arange(0, d_model, 2) * (
                     -math.log(10000.0) / d_model
             )
         )
-        pe = torch.zeros(max_len, 1, d_model)
-        pe[:, 0, 0::2] = torch.sin(position * div_term)
-        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        pe = torch.zeros(1, max_len, d_model)
+        pe[0, :, 0::2] = torch.sin(position * div_term)
+        pe[0, :, 1::2] = torch.cos(position * div_term)
         self.register_buffer("pe", pe)
+
+        if self.scaled:
+            self.alpha = nn.Parameter(torch.ones(1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -194,7 +200,10 @@ class PositionalEncoding(torch.nn.Module):
         :return: torch.Tensor with positional encoding added to the input.
         :rtype: torch.Tensor.
         """
-        x = x + self.pe[:x.size(1)].transpose(0, 1)
+        if self.scaled:
+            x = x + self.alpha * self.pe[:, :x.size(1)]
+        else:
+            x = x + self.pe[:, :x.size(1)]
 
         return x
 
@@ -204,7 +213,8 @@ class MultiheadAttention(nn.Module):
             self,
             d_model: int,
             num_heads: int,
-            dropout_rate: float
+            dropout_rate: float,
+            use_flash: bool = False
     ) -> None:
         """
         MultiheadAttention is a neural network layer designed to implement
@@ -254,12 +264,14 @@ class MultiheadAttention(nn.Module):
         assert d_model % num_heads == 0
         self.depth = d_model // num_heads
 
-        self.wq = nn.Linear(d_model, d_model)
-        self.wk = nn.Linear(d_model, d_model)
-        self.wv = nn.Linear(d_model, d_model)
+        self.wq = nn.Linear(d_model, d_model, bias=False)
+        self.wk = nn.Linear(d_model, d_model, bias=False)
+        self.wv = nn.Linear(d_model, d_model, bias=False)
 
-        self.fc = nn.Linear(d_model, d_model)
+        self.fc = nn.Linear(d_model, d_model, bias=False)
         self.dropout = nn.Dropout(dropout_rate)
+        self.use_flash = use_flash
+        self.dropout_rate = dropout_rate
 
     def scaled_dot_product_attention(
             self,
@@ -385,9 +397,39 @@ class MultiheadAttention(nn.Module):
         k = self.split_heads(k, batch_size)
         v = self.split_heads(v, batch_size)
 
-        scaled_attention, attention_weights = self.scaled_dot_product_attention(
-            q, k, v, mask=mask, key_padding_mask=key_padding_mask
-        )
+        if self.use_flash:
+
+            B, _, Lq, _ = q.shape
+            Lk = k.shape[-2]
+            NEG_INF = torch.finfo(q.dtype).min
+            attn_mask = None
+
+            if mask is not None:
+                assert mask.ndim == 2, "mask should be 2D tensor."
+                attn_mask = mask.unsqueeze(0).unsqueeze(0) # (Lq, Lk) -> (1, 1, Lq, Lk)
+                attn_mask = attn_mask.to(q.device, dtype=q.dtype)
+
+            if key_padding_mask is not None:
+                assert key_padding_mask.dtype == torch.bool, "key_padding_mask should be bool tensor."
+                key_padding_mask = key_padding_mask.unsqueeze(1).unsqueeze(2) # (B, Lk) -> (B, 1, 1, Lk)
+                key_padding_mask = key_padding_mask.to(q.device)
+                kpm_f = torch.zeros(B, 1, 1, Lk, dtype=q.dtype, device=q.device).masked_fill(key_padding_mask, NEG_INF)
+                attn_mask = kpm_f if attn_mask is None else (attn_mask + kpm_f)
+
+
+            scaled_attention = nn.functional.scaled_dot_product_attention(
+                q, k, v,
+                attn_mask=attn_mask,
+                dropout_p=self.dropout_rate if self.training else 0.0,
+                is_causal=False
+            )
+            attention_weights = None
+
+        else:
+
+            scaled_attention, attention_weights = self.scaled_dot_product_attention(
+                q, k, v, mask=mask, key_padding_mask=key_padding_mask
+            )
         scaled_attention = torch.permute(scaled_attention, [0, 2, 1, 3])
         concat_attention = torch.reshape(
             scaled_attention, (batch_size, -1, self.d_model))
@@ -402,7 +444,7 @@ class FeedForwardNetwork(nn.Module):
             d_model,
             dff,
             dropout_rate: float = 0.1,
-            activation: nn.Module = nn.ReLU()
+            activation: nn.Module = nn.GELU()
     ):
         super(FeedForwardNetwork, self).__init__()
 
