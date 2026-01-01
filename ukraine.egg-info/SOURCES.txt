@@ -13,6 +13,9 @@ ukraine/research/expressnet/model.py
 ukraine/research/phaseunet/inference.py
 ukraine/research/phaseunet/model.py
 ukraine/research/phaseunet/utils.py
+ukraine/research/synthia/layers.py
+ukraine/research/synthia/losses.py
+ukraine/research/synthia/model.py
 ukraine/research/transformer/layers.py
 ukraine/research/transformer/masking.py
 ukraine/research/transformer/tokenizers.py
