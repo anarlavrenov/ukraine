@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ukraine"
-version = "0.2.5"
+version = "0.2.7"
 authors = [{name = "Anar", email = "anarstanislavlavrenov@gmail.com"}]
 description = "Ukraine: A Data Science Toolkit"
 readme = "README.md"

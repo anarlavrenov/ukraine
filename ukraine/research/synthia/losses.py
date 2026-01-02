@@ -91,8 +91,9 @@ class GuidedAttentionLoss(nn.Module):
         return guided_attn_masks
 
 
-    @staticmethod
+
     def _make_guided_attention_mask(
+            self,
             input_len,
             output_len,
             sigma
