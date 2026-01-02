@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from ukraine.research.transformer.layers import PositionalEncoding
-from ukraine.research.transformer.transformer import EncoderLayer
+from ukraine.research.transformer.transformer import EncoderLayer, DecoderLayer
 
 
 class EncoderPreNet(nn.Module):
@@ -126,7 +126,7 @@ class Decoder(nn.Module):
             DecoderLayer(
                 d_model, num_heads,
                 dropout_rate, ff_factory,
-                norm_factory, use_flash, use_cross_attn
+                norm_factory, use_flash, use_cross_attn, cross_fusion=True
             )
             for _ in range(num_decoder_layers)
         ]
