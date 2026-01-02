@@ -8,8 +8,9 @@ class GuidedAttentionLoss(nn.Module):
             alpha,
             n_layer,
             n_head_start,
+            reduction_factor,
             reset_always = True,
-            reduction_factor = args.reduction_factor
+            device = "cuda"
     ):
         super().__init__()
 
@@ -21,6 +22,7 @@ class GuidedAttentionLoss(nn.Module):
         self.guided_attn_masks  = None
         self.masks              = None
         self.reduction_factor   = reduction_factor
+        self.device = device
 
 
     def _reset_masks(self):
@@ -77,7 +79,7 @@ class GuidedAttentionLoss(nn.Module):
         max_input_len   = int(input_lens.max().item())
         max_output_len  = int(output_lens.max().item())
 
-        guided_attn_masks = torch.zeros((B, max_output_len, max_input_len), dtype=torch.float32, device=args.device)
+        guided_attn_masks = torch.zeros((B, max_output_len, max_input_len), dtype=torch.float32, device=self.device)
 
         for idx, (input_len, output_len) in enumerate(zip(input_lens, output_lens)):
             input_len   = int(input_len.item())
@@ -97,8 +99,8 @@ class GuidedAttentionLoss(nn.Module):
     ):
 
         grid_x, grid_y = torch.meshgrid(
-        torch.arange(output_len, dtype=torch.float32, device=args.device),
-        torch.arange(input_len, dtype=torch.float32, device=args.device),
+        torch.arange(output_len, dtype=torch.float32, device=self.device),
+        torch.arange(input_len, dtype=torch.float32, device=self.device),
         indexing="ij"
         )
 
@@ -119,8 +121,8 @@ class GuidedAttentionLoss(nn.Module):
         max_input_len   = int(input_lens.max().item())
         max_output_len  = int(output_lens.max().item())
 
-        input_masks   = torch.zeros((B, max_input_len), dtype=torch.bool, device=args.device)
-        output_masks  = torch.zeros((B, max_output_len), dtype=torch.bool, device=args.device)
+        input_masks   = torch.zeros((B, max_input_len), dtype=torch.bool, device=self.device)
+        output_masks  = torch.zeros((B, max_output_len), dtype=torch.bool, device=self.device)
 
         for idx, (input_len, output_len) in enumerate(zip(input_lens, output_lens)):
             input_len                       = int(input_len.item())

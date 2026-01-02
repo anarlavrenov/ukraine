@@ -39,7 +39,7 @@ class DecoderPreNet(nn.Module):
     super().__init__()
 
     self.net = nn.Sequential(
-        nn.Linear(args.n_mels * reduction_factor, d_model),
+        nn.Linear(80 * reduction_factor, d_model),
         nn.ReLU(),
         nn.Dropout(dropout_rate),
         nn.Linear(d_model, d_model),

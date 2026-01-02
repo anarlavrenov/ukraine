@@ -53,8 +53,8 @@ class Synthia(nn.Module):
 
 
     self.reduction_factor = reduction_factor
-    self.n_mels           = args.n_mels
-    self.output_linear    = nn.Linear(d_model, args.n_mels * self.reduction_factor)
+    self.n_mels           = 80
+    self.output_linear    = nn.Linear(d_model, 80 * self.reduction_factor)
     self.stop_linear      = nn.Linear(d_model, 1)
 
 
