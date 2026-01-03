@@ -150,7 +150,7 @@ class PositionalEncoding(torch.nn.Module):
     def __init__(
             self,
             d_model: int,
-            max_len: int = 1000,
+            max_len: int = 5000,
             scaled: bool = False
     ) -> None:
         """

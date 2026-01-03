@@ -59,6 +59,7 @@ class Encoder(nn.Module):
       num_heads,
       input_vocab_size,
       dropout_rate,
+      encoder_dropout_rate,
       ff_factory,
       norm_factory,
       pad_token_id,
@@ -67,7 +68,7 @@ class Encoder(nn.Module):
     super(Encoder, self).__init__()
 
     self.spe              = PositionalEncoding(d_model, scaled=True)
-    self.encoder_pre_net  = EncoderPreNet(d_model, dropout_rate)
+    self.encoder_pre_net  = EncoderPreNet(d_model, encoder_dropout_rate)
     self.embedding        = nn.Embedding(input_vocab_size, d_model, padding_idx=pad_token_id)
     self.dropout          = nn.Dropout(dropout_rate)
     self.d_model          = d_model
@@ -109,6 +110,7 @@ class Decoder(nn.Module):
       d_model,
       num_heads,
       dropout_rate,
+      decoder_dropout_rate,
       ff_factory,
       norm_factory,
       reduction_factor,
@@ -117,7 +119,7 @@ class Decoder(nn.Module):
       ):
     super().__init__()
 
-    self.decoder_prenet = DecoderPreNet(d_model, reduction_factor, dropout_rate)
+    self.decoder_prenet = DecoderPreNet(d_model, reduction_factor, decoder_dropout_rate)
     self.spe = PositionalEncoding(d_model, scaled=True)
     self.positional_dropout = nn.Dropout(dropout_rate)
 
