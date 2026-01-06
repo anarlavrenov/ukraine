@@ -142,7 +142,12 @@ class SynthiaLoss(nn.Module):
           ga_n_layer,
           ga_n_head_start,
           reduction_factor,
-          pos_weight
+          pos_weight,
+          mel_pad_value,
+          silence_margin,
+          silence_weight,
+          high_freq_ratio  = None,
+          high_freq_weight = None
   ):
       super().__init__()
 
@@ -154,10 +159,19 @@ class SynthiaLoss(nn.Module):
           reduction_factor = reduction_factor
       )
 
-      self.bce_criterion = nn.BCEWithLogitsLoss(
+      self.bce_criterion= nn.BCEWithLogitsLoss(
           pos_weight=pos_weight,
           reduction="none"
       )
+
+      # freq_weighted_l1
+      self.high_freq_ratio  = high_freq_ratio
+      self.high_freq_weight = high_freq_weight
+
+      # silence_penalty
+      self.mel_pad_value    = mel_pad_value
+      self.silence_margin   = silence_margin
+      self.silence_weight   = silence_weight
 
   def forward(
           self,
@@ -176,8 +190,33 @@ class SynthiaLoss(nn.Module):
       valid_mask_mse  = (~tgt_key_padding_mask).float().unsqueeze(-1)
       valid_mask_bce  = (~dec_tgt_padding_mask)
 
-      mel_base_loss   = self.calc_l1_(mel_base, mel_true, valid_mask_mse)
-      mel_final_loss  = self.calc_l1_(mel_final, mel_true, valid_mask_mse)
+      if self.high_freq_ratio is not None and self.high_freq_weight is not None:
+          mel_base_loss = self.freq_weighted_l1(
+              mel_base,
+              mel_true,
+              valid_mask_mse,
+              self.high_freq_ratio,
+              self.high_freq_weight
+          )
+          mel_final_loss = self.freq_weighted_l1(
+              mel_final,
+              mel_true,
+              valid_mask_mse,
+              self.high_freq_ratio,
+              self.high_freq_weight
+          )
+      else:
+          mel_base_loss   = self.calc_l1_(mel_base, mel_true, valid_mask_mse)
+          mel_final_loss  = self.calc_l1_(mel_final, mel_true, valid_mask_mse)
+
+      silence_loss = self.silence_penalty(
+          mel_final,
+          mel_true,
+          valid_mask_mse,
+          self.mel_pad_value,
+          self.silence_margin,
+          self.silence_weight
+      )
 
       guided_attention_loss = self.guided_attention(
           cross_attention,
@@ -192,6 +231,7 @@ class SynthiaLoss(nn.Module):
       return (
           mel_base_loss,
           mel_final_loss,
+          silence_loss,
           guided_attention_loss,
           stop_loss
       )
@@ -203,3 +243,53 @@ class SynthiaLoss(nn.Module):
       mae             = (mel_pred - mel_true).abs()
       mel_loss        = (mae * valid_mask).sum() / (valid_mask.sum() * mel_pred.size(-1) + 1e-8)
       return mel_loss
+
+  @staticmethod
+  def freq_weighted_l1(
+          mel_pred,
+          mel_true,
+          valid_mask,
+          high_freq_ratio,
+          high_freq_weight
+  ):
+      B, T, M           = mel_pred.size()
+      # 80 * (1.0 - 0.5) = 80 * 0.5 = 40
+      split             = int(M * (1.0 - high_freq_ratio))
+      mae               = (mel_pred - mel_true).abs()
+      # B, T, :40
+      low_part          = mae[..., :split]
+      # B, T, 40:
+      high_part         = mae[..., split:]
+
+      # B, T, M
+      vm                = valid_mask.expand(B, T, M)
+      # B, T, :40
+      vm_low            = vm[..., :split]
+      # B, T, 40:
+      vm_high           = vm[..., split:]
+
+      low_loss          = (low_part * vm_low).sum() / (vm_low.sum() + 1e-8)
+      high_loss         = (high_part * vm_high).sum() / (vm_high.sum() + 1e-8)
+
+      return low_loss + high_freq_weight * high_loss
+
+  @staticmethod
+  def silence_penalty(
+          mel_pred,
+          mel_true,
+          valid_mask,
+          mel_pad_value,
+          silence_margin,
+          silence_weight
+  ):
+      threshold = mel_pad_value + silence_margin
+      # B, T, 1
+      silent_mask = (mel_true < threshold).all(dim=-1, keepdim=True)
+      silent_mask = silent_mask & valid_mask.bool()
+
+      if silent_mask.sum() == 0:
+          return mel_pred.new_tensor(0.0)
+
+      err = (mel_pred - mel_true).abs()
+      pen = (err * silent_mask).sum() / (silent_mask.float().sum() * mel_pred.size(-1) + 1e-8)
+      return pen * silence_weight

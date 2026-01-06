@@ -172,7 +172,7 @@ class PostNet(nn.Module):
   def __init__(self, d_model, reduction_factor, dropout_rate):
     super().__init__()
 
-    ch_ = [80 * reduction_factor, d_model, d_model * 2, d_model * 2, d_model]
+    ch_ = [80 * reduction_factor, d_model, d_model, d_model, d_model, d_model]
 
     self.net = nn.ModuleList()
 
