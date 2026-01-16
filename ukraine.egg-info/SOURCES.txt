@@ -8,6 +8,7 @@ ukraine.egg-info/requires.txt
 ukraine.egg-info/top_level.txt
 ukraine/agents/complex.py
 ukraine/agents/rag.py
+ukraine/research/experimental.py
 ukraine/research/expressnet/layers.py
 ukraine/research/expressnet/model.py
 ukraine/research/phaseunet/inference.py
