@@ -199,8 +199,8 @@ class MultiResolutionSTFTLoss(torch.nn.Module):
             valid_count += 1
 
             # B, M, T
-            pred_mel_i = batch_pred_mel[i:i + 1, :Lm, :].transpose(2, 1)
-            true_mel_i = batch_true_mel[i:i + 1, :Lm, :].transpose(2, 1)
+            pred_mel_i = batch_pred_mel[i:i + 1, :Lm, :].transpose(2, 1).float()
+            true_mel_i = batch_true_mel[i:i + 1, :Lm, :].transpose(2, 1).float()
 
 
             # B. 1, T --> B, T
