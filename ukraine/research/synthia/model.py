@@ -20,7 +20,8 @@ class Synthia(nn.Module):
           pad_token_id,
           use_flash,
           reduction_factor,
-          use_cross_attn = True
+          use_cross_attn = True,
+          use_cross_fusion = True
   ):
       super().__init__()
 
@@ -52,7 +53,8 @@ class Synthia(nn.Module):
           norm_factory,
           reduction_factor,
           use_flash,
-          use_cross_attn
+          use_cross_attn,
+          use_cross_fusion
       )
 
       self.postnet = PostNet(

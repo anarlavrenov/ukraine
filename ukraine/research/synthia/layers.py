@@ -115,7 +115,8 @@ class Decoder(nn.Module):
       norm_factory,
       reduction_factor,
       use_flash,
-      use_cross_attn
+      use_cross_attn,
+      use_cross_fusion
       ):
     super().__init__()
 
@@ -128,7 +129,7 @@ class Decoder(nn.Module):
             DecoderLayer(
                 d_model, num_heads,
                 dropout_rate, ff_factory,
-                norm_factory, use_flash, use_cross_attn, cross_fusion=True
+                norm_factory, use_flash, use_cross_attn, cross_fusion=use_cross_fusion
             )
             for _ in range(num_decoder_layers)
         ]
