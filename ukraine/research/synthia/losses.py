@@ -137,22 +137,11 @@ class GuidedAttentionLoss(nn.Module):
 class SynthiaLoss(nn.Module):
   def __init__(
           self,
-          ga_sigma,
-          ga_alpha,
-          ga_n_layer,
-          ga_n_head_start,
           reduction_factor,
           pos_weight
   ):
       super().__init__()
 
-      self.guided_attention = GuidedAttentionLoss(
-          ga_sigma,
-          ga_alpha,
-          ga_n_layer,
-          ga_n_head_start,
-          reduction_factor = reduction_factor
-      )
 
       self.bce_criterion = nn.BCEWithLogitsLoss(
           pos_weight=pos_weight,
@@ -179,12 +168,6 @@ class SynthiaLoss(nn.Module):
       mel_base_loss   = self.calc_l1_(mel_base, mel_true, valid_mask_mse)
       mel_final_loss  = self.calc_l1_(mel_final, mel_true, valid_mask_mse)
 
-      guided_attention_loss = self.guided_attention(
-          cross_attention,
-          tokens_lens,
-          mels_lens
-      )
-
       stop_loss = self.bce_criterion(stop_pred, stop_true)
       stop_loss = (stop_loss * valid_mask_bce).sum() / (valid_mask_bce.sum() + 1e-8)
 
@@ -192,7 +175,6 @@ class SynthiaLoss(nn.Module):
       return (
           mel_base_loss,
           mel_final_loss,
-          guided_attention_loss,
           stop_loss
       )
 
