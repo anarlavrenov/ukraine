@@ -137,7 +137,6 @@ class GuidedAttentionLoss(nn.Module):
 class SynthiaLoss(nn.Module):
   def __init__(
           self,
-          reduction_factor,
           pos_weight
   ):
       super().__init__()
@@ -155,9 +154,6 @@ class SynthiaLoss(nn.Module):
           mel_true,
           tgt_key_padding_mask,
           dec_tgt_padding_mask,
-          cross_attention,
-          tokens_lens,
-          mels_lens,
           stop_pred,
           stop_true
   ):
