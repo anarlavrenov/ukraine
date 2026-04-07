@@ -63,8 +63,3 @@ JIRA_USERNAME=<your_email>
 JIRA_INSTANCE_URL=https://yourproject.atlassian.net
 JIRA_CLOUD=True
 ```
-
-
-```python
-promocode: ukgit091
-```
